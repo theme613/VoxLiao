@@ -1,0 +1,17 @@
+Copyright (c) 2026 Theme613. All rights reserved.
+
+This software is licensed, not sold.
+
+The buyer may install and use VoxLiao for personal use according to the purchased license.
+
+The buyer may not:
+- Reverse engineer, decompile, or redistribute the software where prohibited by applicable law.
+- Resell, rent, lease, sublicense, or share the executable without written permission from Theme613.
+- Remove creator credits, copyright notices, or branding.
+- Distribute bundled audio content without necessary rights.
+- Claim the software as their own.
+
+DISCLAIMER:
+The software is provided "as is" without warranties. Theme613 is not liable for loss of data, damage, audio-routing problems, third-party service changes, game bans caused by misuse, or indirect damages to the maximum extent permitted by law.
+
+This license must be reviewed by a qualified legal professional before commercial release if the developer needs a legally tailored license for their country or business.
