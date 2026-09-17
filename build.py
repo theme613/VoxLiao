@@ -40,8 +40,6 @@ def build():
         ])
         if os.path.exists("icon.icns"):
             command.extend(["--icon", "icon.icns"])
-        elif os.path.exists("icon.png"):
-            command.extend(["--icon", "icon.png"])
 
     command.append("main.py")
     

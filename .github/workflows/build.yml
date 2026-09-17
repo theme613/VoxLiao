@@ -37,6 +37,7 @@ jobs:
           path: |
             dist/VoxLiao-macOS.zip
             dist/*.dmg
+            dist/*.pkg
             dist/VoxLiao.app
 
   build-windows:
