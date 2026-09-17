@@ -1,128 +1,153 @@
 # VoxLiao
 
-Offline Soundboard for Gaming, Discord, Streaming, and Voice Chat
+Offline Cross-Platform Soundboard for Gaming, Discord, Streaming, and Voice Chat (macOS & Windows).
 
 ## Features
 
-- Play custom sound effects from a grid of sound buttons.
-- Built-in soundboard profiles.
+- Play custom sound effects from a grid of responsive sound buttons.
+- Cross-platform support for **macOS** and **Windows**.
+- Built-in soundboard profiles with preloaded sound effects.
 - Create, rename, duplicate, and manage profiles.
-- Import MP3, WAV, OGG, and FLAC sounds where supported.
-- Global hotkeys for every sound.
-- Audio-device selection.
+- Import MP3, WAV, OGG, and FLAC audio files with automatic sample-rate resampling.
+- Global hotkeys for every sound (`pynput` on macOS / `keyboard` on Windows).
+- Audio device selection with dynamic mono/stereo channel configuration.
 - Local sound monitoring through headphones/speakers.
-- Voice-chat routing with compatible virtual audio cable software.
-- Import and export complete soundboards.
-- System tray support.
+- Voice-chat routing with compatible virtual audio devices (BlackHole on Mac, VB-CABLE on Windows).
+- Import and export complete soundboards (`.voxliao` packages).
+- System tray / menu bar integration.
 - Offline-first local storage.
 - No account required.
 - Created by Theme613.
 
-## Requirements
+---
 
-- Windows 10 or Windows 11.
-- A working microphone for voice + sound mixing.
-- Headphones strongly recommended to prevent echo.
-- A compatible virtual audio cable only if you want other people in Discord/game voice chat to hear your sounds.
+## Running on macOS
 
-## Quick Start
+### 1. Quick Start (One-Command Launch)
 
-1. Install VoxLiao using VoxLiao-Setup.exe.
-2. Open VoxLiao from the Start Menu or desktop shortcut.
-3. Select a sound profile.
-4. Click an empty button with the plus icon.
-5. Choose an audio file.
-6. Name the sound.
-7. Click the sound tile to play it.
-8. Optionally assign a global hotkey.
+Open Terminal in the project directory and run:
 
-## Let Others Hear Your Sounds
+```bash
+chmod +x run_mac.sh
+./run_mac.sh
+```
 
-To let people in Discord, Valorant, or another voice-chat app hear VoxLiao sounds, configure a virtual audio cable.
+This script will automatically:
+1. Detect or set up a Python 3 virtual environment (`.venv`).
+2. Install all required dependencies from `requirements.txt`.
+3. Launch VoxLiao.
 
-Recommended audio path:
+Alternatively, you can run manually:
+```bash
+python3 -m venv .venv
+source .venv/bin/activate
+pip install -r requirements.txt
+python3 main.py
+```
 
-Real Microphone + VoxLiao Sound Effects
-→ VoxLiao Audio Mixer
-→ CABLE Input
-→ CABLE Output
-→ Discord/Game Microphone Input
+### 2. macOS Permissions
 
-Setup steps:
+macOS requires permissions for global hotkeys and microphone input:
 
-1. Install a compatible virtual audio cable.
-2. In VoxLiao, open Settings > Audio Routing.
-3. Set Physical Microphone Input to your real microphone.
-4. Set Local Monitoring Device to your headphones.
-5. Set Voice Chat Mix Output to CABLE Input.
-6. In Discord, open User Settings > Voice & Video.
-7. Set Input Device to CABLE Output.
-8. Keep Discord Output Device set to your headphones.
-9. Use Discord Mic Test and press a VoxLiao sound button.
+1. **Microphone Access:** Prompted on first launch, or enable under:
+   *System Settings > Privacy & Security > Microphone > Terminal / Python / VoxLiao*
+2. **Global Hotkeys (Accessibility):** To trigger sounds with hotkeys while in other apps/games:
+   *System Settings > Privacy & Security > Accessibility > Enable Terminal / Python / VoxLiao*
 
-Troubleshooting tips:
+### 3. Voice Chat Audio Routing on macOS (Discord, Games)
 
-- Use headphones, not speakers, to avoid echo/feedback.
-- If Discord cuts off sounds, test disabling Discord Noise Suppression.
-- Consider disabling Discord Echo Cancellation and Automatic Gain Control if it removes sound effects.
-- Confirm CABLE Input is selected in VoxLiao.
-- Confirm CABLE Output is selected as Discord input.
-- Restart VoxLiao after installing a virtual audio cable.
-- Restart Windows if the virtual cable installer requires it.
-- Verify that microphone privacy permission is enabled in Windows.
-- Ensure the correct microphone is selected in VoxLiao.
+To allow people in Discord or games to hear your sounds and voice:
 
-## Importing Sounds
+1. **Install BlackHole (Free & Open Source):**
+   ```bash
+   brew install blackhole-2ch
+   ```
+   *Or download the installer from: [ExistentialAudio BlackHole](https://github.com/ExistentialAudio/BlackHole)*
+2. In **VoxLiao** (`Settings > Audio Routing` or the Setup Wizard):
+   - **Physical Microphone Input:** Set to your Mac mic (e.g., MacBook Microphone or USB Mic).
+   - **Local Monitoring Device:** Set to your headphones (e.g., MacBook Speakers or AirPods).
+   - **Voice Chat Output Device:** Set to `BlackHole 2ch`.
+3. In **Discord** (`User Settings > Voice & Video`):
+   - **Input Device:** Set to `BlackHole 2ch`.
+   - **Output Device:** Keep as your headphones.
+   - *Tip:* Turn off Discord's "Noise Suppression" (Krisp) if your soundboard effects sound muffled.
 
-1. Click an empty tile or right-click an existing tile.
-2. Select Add/Edit Sound.
-3. Select an audio file.
-4. Choose a display name, color, icon, volume, and hotkey.
-5. Save.
+### 4. Building a Standalone macOS App (`.app` / `.dmg`)
 
-Imported sounds are copied to a local user folder so they remain available even if the original file is moved.
+To create a standalone macOS `.app` bundle:
 
-Local data location:
+```bash
+python3 build_mac.py
+```
 
-%APPDATA%\VoxLiao\
+This creates:
+- `dist/VoxLiao.app` (macOS Application bundle)
+- `dist/VoxLiao-macOS.zip` (portable release archive)
+- `dist/VoxLiao-macOS.dmg` (disk image installer, when built on macOS)
 
-## Exporting and Importing Soundboards
+You can launch it directly with:
+```bash
+open dist/VoxLiao.app
+```
 
-- Export a profile or all profiles through Settings > Profiles (Data tab).
-- VoxLiao exports packages with the `.voxliao` extension.
-- Imported packages may contain button configuration, profiles, icons, hotkeys, and audio files.
-- Always export a backup before replacing existing profiles.
+---
+
+## Running on Windows
+
+### Quick Start
+1. Install VoxLiao using `VoxLiao-Setup.exe` (or run `python main.py` with dependencies from `requirements.txt`).
+2. Open VoxLiao.
+3. Configure virtual audio cable (`Settings > Audio Routing`).
+4. Select sound profiles and play or assign hotkeys.
+
+### Building for Windows
+```bash
+python build.py
+```
+Produces `dist/VoxLiao.exe`.
+
+---
+
+## Local Data Locations
+
+VoxLiao stores profiles, settings, and imported sound files locally in standard OS paths:
+
+- **macOS:** `~/Library/Application Support/VoxLiao/`
+- **Windows:** `%APPDATA%\VoxLiao\`
+- **Linux:** `~/.local/share/VoxLiao/`
+
+---
+
+## Automated Multi-Platform Builds (GitHub Actions)
+
+This repository includes a GitHub Actions workflow (`.github/workflows/build.yml`) that automatically builds both:
+- **macOS:** `VoxLiao.app` and `VoxLiao-macOS.zip`
+- **Windows:** `VoxLiao.exe`
+
+Whenever you push to `main` or trigger a build, you can download prebuilt binaries directly from the **Actions** tab on GitHub without needing a Mac physically present.
+
+---
 
 ## Privacy
 
-- VoxLiao works offline.
+- VoxLiao works completely offline.
 - VoxLiao does not require an account.
-- VoxLiao does not upload sound files.
-- VoxLiao does not upload microphone audio.
-- VoxLiao does not use analytics or tracking.
-- VoxLiao stores profiles and imported sound files locally.
+- VoxLiao does not upload sound files or microphone audio.
+- VoxLiao does not track telemetry or analytics.
+
+---
 
 ## Support
 
 VoxLiao is independently created by Theme613.
 
-If you enjoy the app and want to support future updates, you can optionally buy the creator a coffee.
-
 Support link:
 PASTE_YOUR_BUY_ME_A_COFFEE_OR_KO_FI_LINK_HERE
 
-## Legal Notice
-
-VoxLiao is an independent application created by Theme613.
-
-VoxLiao is not affiliated with, endorsed by, or sponsored by Discord, Riot Games, Valorant, Elgato, Stream Deck, VB-Audio, or any other third-party company or service.
-
-Users are responsible for ensuring they have the rights to use, distribute, and play imported audio files.
-
-Do not include copyrighted sound effects in commercial releases unless redistribution rights have been verified.
+---
 
 ## Version
 
-VoxLiao 1.0.0
+VoxLiao 1.1.0 (Cross-Platform macOS & Windows)
 
 Created by Theme613.

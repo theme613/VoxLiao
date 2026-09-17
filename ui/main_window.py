@@ -270,5 +270,6 @@ class MainWindow(QMainWindow):
             event.ignore()
             self.hide()
         else:
+            self.hotkey_manager.stop()
             self.audio_manager.stop_engine()
             event.accept()

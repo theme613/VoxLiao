@@ -3,34 +3,63 @@ import subprocess
 import sys
 
 def build():
-    print("Building VoxLiao with PyInstaller...")
+    is_mac = (sys.platform == 'darwin')
+    is_win = (sys.platform == 'win32')
     
-    # ensure sound dir exists for PyInstaller
+    print(f"Building VoxLiao for {sys.platform} with PyInstaller...")
+    
+    # Ensure sound directory exists
     if not os.path.exists('sound'):
         os.makedirs('sound')
-        
+
+    # Path separator for --add-data: ';' on Windows, ':' on Unix/Mac
+    data_sep = ';' if is_win else ':'
+    
     command = [
-        "pyinstaller",
+        sys.executable, "-m", "PyInstaller",
         "--noconfirm",
-        "--onefile",
         "--windowed",
         "--name=VoxLiao",
-        "--add-data", "sound;sound",
+        "--add-data", f"sound{data_sep}sound",
         "--hidden-import", "sounddevice",
         "--hidden-import", "soundfile",
         "--hidden-import", "numpy",
-        "--version-file=version.txt",
-        "main.py"
+        "--hidden-import", "pynput",
     ]
     
-    # Run pyinstaller
-    result = subprocess.run(command, capture_output=True, text=True)
+    if is_win:
+        command.append("--onefile")
+        command.extend(["--hidden-import", "keyboard"])
+        if os.path.exists("version.txt"):
+            command.append("--version-file=version.txt")
+    elif is_mac:
+        command.extend([
+            "--onedir",
+            "--osx-bundle-identifier=com.theme613.voxliao",
+            "--hidden-import", "pynput.keyboard._darwin",
+        ])
+        if os.path.exists("icon.icns"):
+            command.extend(["--icon", "icon.icns"])
+        elif os.path.exists("icon.png"):
+            command.extend(["--icon", "icon.png"])
+
+    command.append("main.py")
+    
+    print("Executing:", " ".join(command))
+    result = subprocess.run(command)
+    
     if result.returncode == 0:
-        print("Build successful!")
-        print("Executable is located in the 'dist' folder (dist/VoxLiao.exe).")
+        print("\n=== Build Successful! ===")
+        if is_mac:
+            print("macOS Application Bundle is located at: dist/VoxLiao.app")
+            print("You can run it via: open dist/VoxLiao.app")
+        elif is_win:
+            print("Windows Executable is located at: dist/VoxLiao.exe")
+        else:
+            print("Binary is located in: dist/VoxLiao")
     else:
-        print("Build failed!")
-        print(result.stderr)
+        print("\n=== Build Failed! ===")
+        sys.exit(result.returncode)
 
 if __name__ == "__main__":
     build()

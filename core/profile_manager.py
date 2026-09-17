@@ -11,11 +11,24 @@ def resource_path(relative_path):
         base_path = sys._MEIPASS
     except Exception:
         base_path = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
-    return os.path.join(base_path, relative_path)
+    full_path = os.path.normpath(os.path.join(base_path, relative_path))
+    if not os.path.exists(full_path) and os.path.exists(relative_path):
+        return os.path.abspath(relative_path)
+    return full_path
+
+def get_app_data_dir():
+    """ Return OS-appropriate user application data directory """
+    if sys.platform == "darwin":
+        base = os.path.expanduser("~/Library/Application Support")
+    elif sys.platform == "win32":
+        base = os.environ.get('APPDATA') or os.path.expanduser("~\\AppData\\Roaming")
+    else:
+        base = os.environ.get('XDG_DATA_HOME') or os.path.expanduser("~/.local/share")
+    return os.path.join(base, "VoxLiao")
 
 class ProfileManager:
     def __init__(self):
-        self.app_data_dir = os.path.join(os.environ.get('APPDATA', ''), 'VoxLiao')
+        self.app_data_dir = get_app_data_dir()
         self.profiles_dir = os.path.join(self.app_data_dir, 'profiles')
         self.imported_sounds_dir = os.path.join(self.app_data_dir, 'imported_sounds')
         self.settings_file = os.path.join(self.app_data_dir, 'settings.json')
@@ -127,14 +140,14 @@ class ProfileManager:
     def import_sound_file(self, filepath):
         if not filepath or not os.path.exists(filepath):
             return ""
-        # Don't copy if it's one of the built-in sounds in MEIPASS
-        if "MEIPASS" in filepath or "sound\\" in filepath or "sound/" in filepath:
-            # We assume it's already a built-in sound if it's from our sound folder
+        # Don't copy if it's one of the built-in sounds in MEIPASS or app sound dir
+        norm = os.path.normpath(filepath)
+        if "MEIPASS" in norm or f"{os.sep}sound{os.sep}" in norm or norm.startswith(f"sound{os.sep}"):
             return filepath
             
         filename = os.path.basename(filepath)
-        dest = os.path.join(self.imported_sounds_dir, filename)
-        if filepath != dest:
+        dest = os.path.normpath(os.path.join(self.imported_sounds_dir, filename))
+        if norm != dest:
             shutil.copy2(filepath, dest)
         return dest
 

@@ -1,32 +1,72 @@
 import sys
 import os
 from PySide6.QtWidgets import QApplication, QSystemTrayIcon, QMenu
-from PySide6.QtGui import QIcon
+from PySide6.QtGui import QIcon, QPixmap, QColor, QPainter, QBrush, QPen
+from PySide6.QtCore import Qt
 from ui.main_window import MainWindow
+from core.profile_manager import resource_path
+
+def create_fallback_icon():
+    """ Creates a sleek 64x64 soundboard icon if no icon.png exists """
+    pixmap = QPixmap(64, 64)
+    pixmap.fill(Qt.GlobalColor.transparent)
+    painter = QPainter(pixmap)
+    painter.setRenderHint(QPainter.RenderHint.Antialiasing)
+    
+    # Rounded dark chassis
+    painter.setBrush(QBrush(QColor("#15171a")))
+    painter.setPen(QPen(QColor("#2f343a"), 2))
+    painter.drawRoundedRect(2, 2, 60, 60, 14, 14)
+    
+    # Soundboard key accents (green + cyan dots)
+    painter.setPen(Qt.PenStyle.NoPen)
+    painter.setBrush(QBrush(QColor("#00d26a")))
+    painter.drawRoundedRect(10, 12, 18, 16, 4, 4)
+    
+    painter.setBrush(QBrush(QColor("#3b82f6")))
+    painter.drawRoundedRect(36, 12, 18, 16, 4, 4)
+    
+    painter.setBrush(QBrush(QColor("#f43f5e")))
+    painter.drawRoundedRect(10, 36, 18, 16, 4, 4)
+    
+    painter.setBrush(QBrush(QColor("#eab308")))
+    painter.drawRoundedRect(36, 36, 18, 16, 4, 4)
+    
+    painter.end()
+    return QIcon(pixmap)
 
 def main():
     # Set up application
     app = QApplication(sys.argv)
-    app.setApplicationName("EchoDeck")
+    app.setApplicationName("VoxLiao")
+    app.setOrganizationName("Theme613")
     
-    # We can create a simple icon later, for now we will just use default or empty
-    # Try to set an app icon if available
-    icon_path = os.path.join(os.path.dirname(__file__), "icon.png")
+    # On macOS, prevent premature exit when windows are closed to tray
+    app.setQuitOnLastWindowClosed(False)
+    
+    # Set app icon
+    icon_path = resource_path("icon.png")
     if os.path.exists(icon_path):
-        app.setWindowIcon(QIcon(icon_path))
+        app_icon = QIcon(icon_path)
+    else:
+        app_icon = create_fallback_icon()
+    app.setWindowIcon(app_icon)
         
     window = MainWindow()
     
+    # Clean shutdown hook
+    def on_exit():
+        try:
+            window.hotkey_manager.stop()
+            window.audio_manager.stop_engine()
+        except Exception:
+            pass
+    app.aboutToQuit.connect(on_exit)
+    
     # System Tray
     tray_icon = QSystemTrayIcon(app)
-    if os.path.exists(icon_path):
-        tray_icon.setIcon(QIcon(icon_path))
-    else:
-        # Create a simple colored pixmap for tray if no icon
-        from PySide6.QtGui import QPixmap, QColor
-        pix = QPixmap(16, 16)
-        pix.fill(QColor("#3b82f6"))
-        tray_icon.setIcon(QIcon(pix))
+    tray_icon.setIcon(app_icon)
+    tray_icon.setToolTip("VoxLiao Soundboard")
         
     tray_menu = QMenu()
     show_action = tray_menu.addAction("Show Soundboard")
@@ -37,16 +77,23 @@ def main():
     
     tray_menu.addSeparator()
     
-    exit_action = tray_menu.addAction("Exit")
+    exit_action = tray_menu.addAction("Quit VoxLiao")
     exit_action.triggered.connect(app.quit)
     
     tray_icon.setContextMenu(tray_menu)
     tray_icon.show()
     
-    tray_icon.activated.connect(lambda reason: window.show() if reason == QSystemTrayIcon.ActivationReason.DoubleClick else None)
+    tray_icon.activated.connect(
+        lambda reason: window.show() if reason in (
+            QSystemTrayIcon.ActivationReason.DoubleClick, 
+            QSystemTrayIcon.ActivationReason.Trigger
+        ) else None
+    )
     
     if not window.profile_manager.settings.get('start_minimized', False):
         window.show()
+        window.raise_()
+        window.activateWindow()
         
     sys.exit(app.exec())
 

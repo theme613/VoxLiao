@@ -4,6 +4,11 @@ import soundfile as sf
 import threading
 from PySide6.QtCore import QObject, Signal
 
+VIRTUAL_AUDIO_KEYWORDS = [
+    "cable", "virtual", "vb-audio", "blackhole", 
+    "soundflower", "loopback", "voicemeeter", "echodeck"
+]
+
 class AudioManager(QObject):
     playback_started = Signal(int)
     playback_stopped = Signal(int)
@@ -17,12 +22,8 @@ class AudioManager(QObject):
         super().__init__()
         self.settings_manager = settings_manager
         
-        self.active_sounds = {} # map button_id -> dict of sound data
+        self.active_sounds = {}  # map button_id -> dict of sound data
         self.lock = threading.Lock()
-        
-        self.mic_stream = None
-        self.vc_out_stream = None
-        self.monitor_out_stream = None
         
         self.samplerate = 44100
         self.blocksize = 1024
@@ -34,7 +35,7 @@ class AudioManager(QObject):
     def get_input_devices(self):
         devices = []
         try:
-            for i, d in enumerate(sd.query_devices()):
+            for d in sd.query_devices():
                 if d['max_input_channels'] > 0:
                     devices.append(d)
         except Exception:
@@ -44,7 +45,7 @@ class AudioManager(QObject):
     def get_output_devices(self):
         devices = []
         try:
-            for i, d in enumerate(sd.query_devices()):
+            for d in sd.query_devices():
                 if d['max_output_channels'] > 0:
                     devices.append(d)
         except Exception:
@@ -53,12 +54,24 @@ class AudioManager(QObject):
 
     def get_device_index(self, name, is_input=False):
         if name == "default" or not name:
-            return None # sd uses None for default
+            return None  # sd uses None for default
         devices = self.get_input_devices() if is_input else self.get_output_devices()
         for d in devices:
             if d['name'] == name:
                 return d['index']
         return None
+
+    def _get_supported_channels(self, dev_idx, is_input=True):
+        """ Returns the safe channel count (1 or 2) supported by the device """
+        try:
+            if dev_idx is None:
+                info = sd.query_devices(kind='input' if is_input else 'output')
+            else:
+                info = sd.query_devices(dev_idx)
+            max_ch = info['max_input_channels'] if is_input else info['max_output_channels']
+            return max(1, min(self.channels, max_ch))
+        except Exception:
+            return self.channels
 
     def start_engine(self):
         self.stop_engine()
@@ -72,9 +85,11 @@ class AudioManager(QObject):
         monitor_idx = self.get_device_index(monitor_name, False)
         vc_idx = self.get_device_index(vc_name, False)
         
-        # We will use a main callback thread to process audio.
-        # For simplicity in this demo, we will run a loop that reads mic and writes to outputs.
-        self.engine_thread = threading.Thread(target=self._audio_loop, args=(mic_idx, monitor_idx, vc_idx), daemon=True)
+        self.engine_thread = threading.Thread(
+            target=self._audio_loop, 
+            args=(mic_idx, monitor_idx, vc_idx), 
+            daemon=True
+        )
         self.engine_thread.start()
 
     def stop_engine(self):
@@ -83,18 +98,56 @@ class AudioManager(QObject):
             self.engine_thread.join(timeout=1.0)
 
     def _audio_loop(self, mic_idx, monitor_idx, vc_idx):
+        mic_stream = None
+        monitor_stream = None
+        vc_stream = None
+        
+        mic_channels = self._get_supported_channels(mic_idx, is_input=True)
+        monitor_channels = self._get_supported_channels(monitor_idx, is_input=False)
+        vc_channels = self._get_supported_channels(vc_idx, is_input=False) if (vc_idx is not None and vc_idx is not False) else 2
+
         try:
-            # Setup streams
-            # Note: opening multiple streams with different devices can block if not carefully handled.
-            # We use a simple blocking read/write loop for stability in this implementation.
-            
-            mic_stream = sd.InputStream(device=mic_idx, channels=self.channels, samplerate=self.samplerate, blocksize=self.blocksize) if mic_idx is not False else None
-            monitor_stream = sd.OutputStream(device=monitor_idx, channels=self.channels, samplerate=self.samplerate, blocksize=self.blocksize) if monitor_idx is not False else None
-            vc_stream = sd.OutputStream(device=vc_idx, channels=self.channels, samplerate=self.samplerate, blocksize=self.blocksize) if vc_idx is not False and vc_idx is not None else None
-            
-            if mic_stream: mic_stream.start()
-            if monitor_stream: monitor_stream.start()
-            if vc_stream: vc_stream.start()
+            # 1. Initialize Microphone Stream
+            if mic_idx is not False:
+                try:
+                    mic_stream = sd.InputStream(
+                        device=mic_idx, 
+                        channels=mic_channels, 
+                        samplerate=self.samplerate, 
+                        blocksize=self.blocksize
+                    )
+                    mic_stream.start()
+                except Exception as e:
+                    print(f"[VoxLiao] Could not open microphone stream: {e}")
+                    mic_stream = None
+
+            # 2. Initialize Monitor Stream (Headphones)
+            if monitor_idx is not False:
+                try:
+                    monitor_stream = sd.OutputStream(
+                        device=monitor_idx, 
+                        channels=monitor_channels, 
+                        samplerate=self.samplerate, 
+                        blocksize=self.blocksize
+                    )
+                    monitor_stream.start()
+                except Exception as e:
+                    print(f"[VoxLiao] Could not open monitor stream: {e}")
+                    monitor_stream = None
+
+            # 3. Initialize Voice Chat Stream (Virtual Cable / BlackHole)
+            if vc_idx is not False and vc_idx is not None:
+                try:
+                    vc_stream = sd.OutputStream(
+                        device=vc_idx, 
+                        channels=vc_channels, 
+                        samplerate=self.samplerate, 
+                        blocksize=self.blocksize
+                    )
+                    vc_stream.start()
+                except Exception as e:
+                    print(f"[VoxLiao] Could not open voice chat stream: {e}")
+                    vc_stream = None
             
             empty_block = np.zeros((self.blocksize, self.channels), dtype='float32')
             
@@ -103,7 +156,12 @@ class AudioManager(QObject):
                 mic_data = empty_block.copy()
                 if mic_stream and not self.settings_manager.settings.get('mute_mic', False):
                     try:
-                        mic_data, _ = mic_stream.read(self.blocksize)
+                        raw_mic, _ = mic_stream.read(self.blocksize)
+                        if mic_channels == 1:
+                            # Expand mono to stereo
+                            mic_data = np.column_stack((raw_mic, raw_mic))
+                        else:
+                            mic_data = raw_mic
                     except Exception:
                         pass
                         
@@ -132,9 +190,9 @@ class AudioManager(QObject):
                                 continue
                                 
                         chunk_size = min(self.blocksize, rem)
+                        chunk = data[pos:pos+chunk_size]
                         
                         # Handle mono to stereo if needed
-                        chunk = data[pos:pos+chunk_size]
                         if len(chunk.shape) == 1:
                             chunk = np.column_stack((chunk, chunk))
                             
@@ -171,28 +229,34 @@ class AudioManager(QObject):
                 # Output to Voice Chat
                 if vc_stream and mode in ['Voice Chat Only', 'Both Local + Voice Chat']:
                     try:
-                        vc_stream.write(np.ascontiguousarray(mix_data))
+                        out_chunk = mix_data[:, 0:1] if vc_channels == 1 else mix_data
+                        vc_stream.write(np.ascontiguousarray(out_chunk, dtype='float32'))
                     except Exception:
                         pass
                         
-                # Output to Monitor
+                # Output to Monitor (Headphones)
                 if monitor_stream and mode in ['Local Only', 'Both Local + Voice Chat']:
-                    # Usually monitor doesn't want the mic feedback to avoid echo, just soundboard
-                    # But prompt says "Soundboard and microphone mix are sent to the selected virtual cable... Soundboard plays locally for the user"
-                    # So monitor_data = sb_data * master_vol
                     monitor_data = sb_data * master_vol
-                    monitor_data = np.clip(monitor_data, -1.0, 1.0)
+                    if self.settings_manager.settings.get('limiter', True):
+                        monitor_data = np.clip(monitor_data, -1.0, 1.0)
                     try:
-                        monitor_stream.write(np.ascontiguousarray(monitor_data))
+                        out_chunk = monitor_data[:, 0:1] if monitor_channels == 1 else monitor_data
+                        monitor_stream.write(np.ascontiguousarray(out_chunk, dtype='float32'))
                     except Exception:
                         pass
 
-            if mic_stream: mic_stream.stop(); mic_stream.close()
-            if monitor_stream: monitor_stream.stop(); monitor_stream.close()
-            if vc_stream: vc_stream.stop(); vc_stream.close()
-            
         except Exception as e:
-            print(f"Audio Engine Error: {e}")
+            print(f"[VoxLiao] Audio Engine Error: {e}")
+        finally:
+            if mic_stream:
+                try: mic_stream.stop(); mic_stream.close()
+                except Exception: pass
+            if monitor_stream:
+                try: monitor_stream.stop(); monitor_stream.close()
+                except Exception: pass
+            if vc_stream:
+                try: vc_stream.stop(); vc_stream.close()
+                except Exception: pass
 
     def play_sound(self, button_id, filepath, volume=100, mode="play_once"):
         if not filepath:
@@ -204,8 +268,26 @@ class AudioManager(QObject):
 
         try:
             data, fs = sf.read(filepath, dtype='float32')
-            # Resample if necessary (simplified: assume 44100 or ignore pitch shift for this MVP)
-            # In a real app we'd use scipy.signal.resample or librosa
+            
+            # Resample audio to match engine sample rate if needed
+            if fs != self.samplerate and fs > 0 and len(data) > 0:
+                new_len = int(round(len(data) * float(self.samplerate) / fs))
+                if len(data.shape) == 1:
+                    data = np.interp(
+                        np.linspace(0, len(data), new_len, endpoint=False), 
+                        np.arange(len(data)), 
+                        data
+                    ).astype('float32')
+                else:
+                    chans = [
+                        np.interp(
+                            np.linspace(0, len(data), new_len, endpoint=False), 
+                            np.arange(len(data)), 
+                            data[:, c]
+                        )
+                        for c in range(data.shape[1])
+                    ]
+                    data = np.column_stack(chans).astype('float32')
             
             with self.lock:
                 self.active_sounds[button_id] = {
@@ -216,7 +298,7 @@ class AudioManager(QObject):
                 }
             self.playback_started.emit(button_id)
         except Exception as e:
-            print(f"Failed to play {filepath}: {e}")
+            print(f"[VoxLiao] Failed to play {filepath}: {e}")
 
     def stop_all(self):
         with self.lock:
@@ -231,16 +313,16 @@ class AudioManager(QObject):
         inputs = [d['name'].lower() for d in self.get_input_devices()]
         outputs = [d['name'].lower() for d in self.get_output_devices()]
         
-        has_input = any("cable" in n or "virtual" in n or "vb-audio" in n for n in inputs)
-        has_output = any("cable" in n or "virtual" in n or "vb-audio" in n for n in outputs)
-        return has_input and has_output
+        has_input = any(any(k in n for k in VIRTUAL_AUDIO_KEYWORDS) for n in inputs)
+        has_output = any(any(k in n for k in VIRTUAL_AUDIO_KEYWORDS) for n in outputs)
+        return has_input or has_output
 
     def auto_select_devices(self):
         inputs = self.get_input_devices()
         real_mic = "default"
         for d in inputs:
             name = d['name'].lower()
-            if not any(x in name for x in ["cable", "virtual", "vb-audio", "voicemeeter", "echodeck"]):
+            if not any(x in name for x in VIRTUAL_AUDIO_KEYWORDS):
                 real_mic = d['name']
                 break
 
@@ -248,14 +330,14 @@ class AudioManager(QObject):
         real_monitor = "default"
         for d in outputs:
             name = d['name'].lower()
-            if not any(x in name for x in ["cable", "virtual", "vb-audio", "voicemeeter", "echodeck"]):
+            if not any(x in name for x in VIRTUAL_AUDIO_KEYWORDS):
                 real_monitor = d['name']
                 break
                 
         cable_out = "none"
         for d in outputs:
             name = d['name'].lower()
-            if "cable" in name or "virtual" in name or "vb-audio" in name:
+            if any(x in name for x in VIRTUAL_AUDIO_KEYWORDS):
                 cable_out = d['name']
                 break
                 
@@ -280,8 +362,8 @@ class AudioManager(QObject):
             errors.append("Selected microphone is disconnected.")
             
         if vc_name == "none" or not any(d['name'] == vc_name for d in self.get_output_devices()):
-            errors.append("CABLE Output missing or not selected.")
+            errors.append("Virtual audio cable (e.g. BlackHole or CABLE) output is missing or not selected.")
             
         if not errors:
-            return True, "CABLE Input is active, microphone signal is entering the mixer, and outputs are configured correctly."
+            return True, "Virtual Audio Cable / Output is active, microphone signal is entering the mixer, and outputs are configured correctly."
         return False, "\n".join(errors)

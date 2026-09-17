@@ -1,6 +1,8 @@
+import sys
 from PySide6.QtWidgets import (QDialog, QVBoxLayout, QHBoxLayout, QLabel, 
                                QComboBox, QCheckBox, QPushButton, QSlider, QTabWidget, QWidget, QFileDialog, QMessageBox, QProgressBar, QTextEdit)
 from PySide6.QtCore import Qt
+from core.profile_manager import resource_path
 
 class SettingsWindow(QDialog):
     def __init__(self, profile_manager, audio_manager, parent=None):
@@ -75,7 +77,7 @@ class SettingsWindow(QDialog):
         
         diag_group_layout = QHBoxLayout()
         test_snd_btn = QPushButton("Play Test Sound")
-        test_snd_btn.clicked.connect(lambda: self.audio_manager.play_sound(-1, "sound/boom.mp3", 100, "play_once"))
+        test_snd_btn.clicked.connect(lambda: self.audio_manager.play_sound(-1, resource_path("sound/boom.mp3"), 100, "play_once"))
         stop_btn = QPushButton("Stop All")
         stop_btn.clicked.connect(self.audio_manager.stop_all)
         diag_btn = QPushButton("Run Full Diagnostic")
@@ -234,17 +236,45 @@ class SettingsWindow(QDialog):
             QMessageBox.information(self, "Support", "Support link has not been configured yet.")
 
     def show_guide(self):
-        guide_text = """
-Step 1: Install a compatible virtual audio cable separately.
-Step 2: In VoxLiao, go to Settings > Audio Routing.
-Step 3: Set 'Voice Chat Output Device' to the virtual cable playback/input device, for example: 'CABLE Input'.
-Step 4: Set 'Physical Microphone Input' to your real microphone.
-Step 5: In Discord, open: User Settings > Voice & Video.
-Step 6: Under Input Device, choose the matching virtual cable recording/output device, for example: 'CABLE Output'.
-Step 7: Use Discord's Mic Test and press a VoxLiao sound button.
-Step 8: If Discord cuts off music or effects: Disable automatic input sensitivity, Noise Suppression, Echo Cancellation, and Automatic Gain Control.
+        if sys.platform == "darwin":
+            guide_text = """macOS Audio Routing Guide:
 
-Warning: Use headphones when possible. Using speakers can cause echo or feedback because the microphone may capture speaker output.
+Step 1: Install BlackHole (recommended free virtual audio driver) or VB-Cable for Mac.
+   - Using Homebrew: brew install blackhole-2ch
+   - Or download: https://github.com/ExistentialAudio/BlackHole
+
+Step 2: In VoxLiao Settings > Audio Routing:
+   - Voice Chat Output Device: Set to 'BlackHole 2ch' (or your virtual audio cable).
+   - Physical Microphone Input: Set to your real Mac / USB microphone.
+   - Local Monitoring Device: Set to your headphones (e.g. Built-in Output / AirPods).
+
+Step 3: In Discord:
+   - Open User Settings > Voice & Video.
+   - Set Input Device to 'BlackHole 2ch'.
+   - Keep Output Device set to your headphones.
+
+Step 4: Test & Optimize:
+   - Use Discord's 'Let's Check' mic test and press a VoxLiao sound button.
+   - Disable Discord's Noise Suppression (Krisp) and Echo Cancellation if sound effects get filtered out.
+   - Grant VoxLiao Microphone & Accessibility permissions in macOS System Settings.
+
+Note: Always use headphones to prevent audio feedback into the microphone!
+"""
+        else:
+            guide_text = """Windows Audio Routing Guide:
+
+Step 1: Install a compatible virtual audio cable (e.g. VB-CABLE).
+Step 2: In VoxLiao Settings > Audio Routing:
+   - Voice Chat Output Device: Set to 'CABLE Input'.
+   - Physical Microphone Input: Set to your real microphone.
+   - Local Monitoring Device: Set to your headphones.
+Step 3: In Discord:
+   - User Settings > Voice & Video > Input Device: Set to 'CABLE Output'.
+   - Output Device: Keep as your headphones.
+Step 4: Use Discord's Mic Test and press a VoxLiao sound button.
+Step 5: If sounds cut off: Disable Discord Noise Suppression and Echo Cancellation.
+
+Warning: Use headphones to avoid echo and acoustic feedback!
 """
         QMessageBox.information(self, "Audio Routing Guide", guide_text)
 
